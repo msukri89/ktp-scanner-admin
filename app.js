@@ -1,58 +1,53 @@
 const video = document.getElementById('video');
-const canvas = document.getElementById('canvas');
-const shutter = document.getElementById('shutter');
-const scriptURL = 'https://script.google.com/macros/s/AKfycbwKebiI0jRkDAJwY1IaYuxyfOrBdnHGJs4TAGcIHgvB844HxHzsio2GhwEJ32AOe_0ERQ/exec';
+const canvas = document.getElementById('captureCanvas');
+const photoPreview = document.getElementById('photoPreview');
+const context = canvas.getContext('2d');
 
-// 1. Aktifkan Kamera
+// Jalankan Kamera
 navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
     .then(stream => { video.srcObject = stream; });
 
-// 2. Ambil Foto & Jalankan Tesseract
-shutter.onclick = async () => {
-    const context = canvas.getContext('2d');
+async function takePhoto() {
+    const btn = document.getElementById('btnCapture');
+    btn.innerText = "Memproses...";
+    btn.disabled = true;
+
+    // 1. Ambil Gambar dari Video (Freeze)
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    // Tampilkan loading sederhana
-    document.getElementById('nama').value = "Sedang memindai...";
+    // 2. Tampilkan Foto Diam & Sembunyikan Kamera Live
+    photoPreview.src = canvas.toDataURL('image/png');
+    photoPreview.style.display = 'block';
+    video.style.display = 'none';
 
-    // Jalankan Tesseract pada canvas
-    const { data: { text } } = await Tesseract.recognize(canvas, 'ind');
-    
-    // Logika Parsing Sederhana (Ini perlu diperdalam dengan Regex nanti)
-    console.log(text);
-    document.getElementById('nama').value = "Scan Selesai. Silakan verifikasi.";
-};
+    // 3. Proses OCR Tesseract
+    Tesseract.recognize(canvas, 'ind')
+    .then(({ data: { text } }) => {
+        // Isi NIK (Cari 16 digit angka)
+        const nikMatch = text.match(/\d{16}/);
+        if (nikMatch) document.getElementById('nik').value = nikMatch[0];
 
-// 3. Kirim Data ke GAS
-document.getElementById('btn-submit').onclick = async () => {
-    const payload = {
-        nik: document.getElementById('nik').value,
-        nama: document.getElementById('nama').value,
-        alamat_detail: document.getElementById('alamat').value,
-        desa: document.getElementById('desa').value,
-        kecamatan: "-", // Nanti diambil dari DB wilayah
-        kota: "-",
-        provinsi: "-",
-        status: navigator.onLine ? "Online" : "Queue"
-    };
+        // Isi Nama (Cari baris setelah kata NAMA)
+        const lines = text.split('\n');
+        for (let line of lines) {
+            if (line.toUpperCase().includes("NAMA")) {
+                document.getElementById('nama').value = line.replace(/Nama|:|nama/gi, "").trim();
+                break;
+            }
+        }
+        
+        btn.innerText = "SCAN ULANG";
+        btn.disabled = false;
+        btn.onclick = resetCamera; 
+    });
+}
 
-    if (!navigator.onLine) {
-        // Logika simpan ke IndexedDB jika offline
-        alert("Offline! Data disimpan di antrean.");
-        return;
-    }
-
-    try {
-        await fetch(scriptURL, {
-            method: 'POST',
-            mode: 'no-cors', // Penting untuk GAS
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-        alert("Data berhasil dikirim!");
-    } catch (e) {
-        console.error("Gagal kirim", e);
-    }
-};
+function resetCamera() {
+    photoPreview.style.display = 'none';
+    video.style.display = 'block';
+    const btn = document.getElementById('btnCapture');
+    btn.innerText = "AMBIL FOTO & PINDAI";
+    btn.onclick = takePhoto;
+}
