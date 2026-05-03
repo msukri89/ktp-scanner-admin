@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ktp-scanner-v1';
+const CACHE_NAME = 'ktp-scanner-v2';
 const assets = [
   'index.html',
   'app.js',
