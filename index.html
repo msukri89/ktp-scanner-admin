@@ -1,206 +1,81 @@
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KTP Scanner Admin</title>
-    <!-- Library OCR -->
-    <script src="https://unpkg.com/tesseract.js@v2.1.0/dist/tesseract.min.js"></script>
-    <style>
-        body { font-family: sans-serif; margin: 0; padding: 10px; background: #f4f4f4; }
-        .container { max-width: 500px; margin: auto; background: white; padding: 15px; border-radius: 8px; }
-        
-        /* Video & Preview Container */
-        .video-container { 
-            position: relative; 
-            width: 100%; 
-            height: 250px; 
-            background: black; 
-            overflow: hidden; 
-            border-radius: 8px;
-            margin-bottom: 15px;
-        }
-        video, #photoPreview { width: 100%; height: 100%; object-fit: cover; }
-        
-        /* Kotak Hijau Panduan */
-        .overlay {
-            position: absolute;
-            top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            width: 80%; height: 60%;
-            border: 2px solid #28a745;
-            border-radius: 10px;
-            pointer-events: none;
-            box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.5);
-        }
+const video = document.getElementById('video');
+const canvas = document.getElementById('captureCanvas');
+const photoPreview = document.getElementById('photoPreview');
+const context = canvas.getContext('2d');
 
-        /* Form Styling */
-        label { display: block; margin-top: 10px; font-weight: bold; font-size: 12px; color: #555; }
-        input { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
-        
-        button { 
-            width: 100%; padding: 15px; margin-top: 15px; border: none; border-radius: 4px; 
-            font-weight: bold; cursor: pointer; color: white;
-        }
-        #btnCapture { background-color: #007bff; }
-        #btnSubmit { background-color: #28a745; }
-        button:disabled { background-color: #ccc; }
-    </style>
-</head>
-<body>
+// 1. Jalankan Kamera
+navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+    .then(stream => { video.srcObject = stream; });
 
-<div class="container">
-    <h3 style="text-align:center; margin-top:0;">KTP Scanner Admin</h3>
-    
-    <div class="video-container">
-        <!-- Kamera Live -->
-        <video id="video" autoplay playsinline></video>
-        
-        <!-- Hasil Foto Diam (Awalnya Sembunyi) -->
-        <img id="photoPreview" style="display:none;">
-        
-        <!-- Panduan Kotak -->
-        <div id="guideline" class="overlay"></div>
-        
-        <!-- Canvas Tersembunyi untuk Proses Gambar -->
-        <canvas id="captureCanvas" style="display:none;"></canvas>
-    </div>
+// 2. Fungsi Utama
+async function takePhoto() {
+    const btn = document.getElementById('btnCapture');
+    btn.innerText = "Memproses...";
+    btn.disabled = true;
 
-    <div class="form-container">
-        <label>NIK (16 DIGIT)</label>
-        <input type="text" id="nik" placeholder="Memindai NIK...">
+    // A. Ambil Gambar Diam
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-        <label>NAMA LENGKAP</label>
-        <input type="text" id="nama" placeholder="Memindai Nama...">
-
-        <label>ALAMAT (DUSUN/JL)</label>
-        <input type="text" id="alamat" placeholder="Input manual Alamat/Dusun...">
-
-        <label>DESA/KELURAHAN</label>
-        <input type="text" id="desa" placeholder="Cari Desa (Offline)...">
-
-        <button id="btnCapture" onclick="takePhoto()">AMBIL FOTO & PINDAI</button>
-        <button id="btnSubmit" onclick="sendToGAS()">SIMPAN KE SPREADSHEET</button>
-    </div>
-</div>
-
-<script>
-    const video = document.getElementById('video');
-    const canvas = document.getElementById('captureCanvas');
-    const photoPreview = document.getElementById('photoPreview');
-    const guideline = document.getElementById('guideline');
-    const context = canvas.getContext('2d');
-
-    // GANTI INI DENGAN URL WEB APP GAS ANDA
-    const scriptURL = 'https://script.google.com/macros/s/AKfycbz_XXXXXXXXX/exec'; 
-
-    // 1. Akses Kamera
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-        .then(stream => { video.srcObject = stream; })
-        .catch(err => alert("Kamera tidak diizinkan atau tidak ditemukan"));
-
-    // 2. Fungsi Ambil Foto & Freeze
-    async function takePhoto() {
-        const btn = document.getElementById('btnCapture');
-        
-        // Jika sedang dalam mode "Scan Ulang"
-        if (btn.innerText === "SCAN ULANG") {
-            resetCamera();
-            return;
-        }
-
-        btn.innerText = "Memproses...";
-        btn.disabled = true;
-
-        // Ambil frame dari video
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        context.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-        // TAMPILKAN FOTO DIAM (FREEZE)
-        photoPreview.src = canvas.toDataURL('image/png');
-        photoPreview.style.display = 'block';
-        video.style.display = 'none';
-        guideline.style.display = 'none';
-
-        // OCR Tesseract
-        Tesseract.recognize(canvas, 'ind')
-        .then(({ data: { text } }) => {
-            console.log("Raw Teks:", text);
-            parseData(text);
-            btn.innerText = "SCAN ULANG";
-            btn.disabled = false;
-        })
-        .catch(err => {
-            alert("Gagal memproses gambar");
-            resetCamera();
-        });
+    // B. PROSES PEMBERSIHAN GAMBAR (Penting agar tidak ngawur)
+    let imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+    let pixels = imageData.data;
+    for (let i = 0; i < pixels.length; i += 4) {
+        let grayscale = pixels[i] * 0.3 + pixels[i+1] * 0.59 + pixels[i+2] * 0.11;
+        // Thresholding: Jika gelap jadikan Hitam, jika terang jadikan Putih
+        let v = (grayscale > 125) ? 255 : 0; 
+        pixels[i] = pixels[i+1] = pixels[i+2] = v;
     }
+    context.putImageData(imageData, 0, 0);
 
-    // 3. Ekstrak NIK & Nama
-    function parseData(text) {
-        // Cari 16 digit NIK
+    // C. Tampilkan Preview Diam
+    photoPreview.src = canvas.toDataURL('image/png');
+    photoPreview.style.display = 'block';
+    video.style.display = 'none';
+
+    // D. Jalankan OCR Tesseract
+    Tesseract.recognize(canvas, 'ind')
+    .then(({ data: { text } }) => {
+        console.log("Raw OCR:", text);
+        
+        // Bersihkan NIK (Cari 16 digit angka)
         const nikMatch = text.match(/\d{16}/);
         if (nikMatch) document.getElementById('nik').value = nikMatch[0];
 
-        // Cari Nama (Logika baris sederhana)
+        // Bersihkan Nama
         const lines = text.split('\n');
-        for (let line of lines) {
+        lines.forEach((line, index) => {
             if (line.toUpperCase().includes("NAMA")) {
-                let cleanName = line.replace(/Nama|:|nama/gi, "").trim();
-                document.getElementById('nama').value = cleanName;
-                break;
+                let name = line.replace(/Nama|:|nama|NAIMA/gi, "").trim();
+                document.getElementById('nama').value = name;
             }
-        }
-    }
-
-    // 4. Balik ke Kamera
-    function resetCamera() {
-        photoPreview.style.display = 'none';
-        video.style.display = 'block';
-        guideline.style.display = 'block';
-        document.getElementById('btnCapture').innerText = "AMBIL FOTO & PINDAI";
-        document.getElementById('nik').value = "";
-        document.getElementById('nama').value = "";
-    }
-
-    // 5. Kirim ke GAS
-    function sendToGAS() {
-        const btn = document.getElementById('btnSubmit');
-        const payload = {
-            nik: document.getElementById('nik').value,
-            nama: document.getElementById('nama').value,
-            alamat_detail: document.getElementById('alamat').value,
-            desa: document.getElementById('desa').value
-        };
-
-        if(!payload.nik || !payload.nama) {
-            alert("Data NIK atau Nama masih kosong!");
-            return;
-        }
-
-        btn.innerText = "Mengirim...";
-        btn.disabled = true;
-
-        fetch(scriptURL, { 
-            method: 'POST', 
-            mode: 'no-cors', // Penting untuk GAS
-            cache: 'no-cache',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload) 
-        })
-        .then(() => {
-            alert("Data berhasil antri/terkirim!");
-            btn.innerText = "SIMPAN KE SPREADSHEET";
-            btn.disabled = false;
-            resetCamera();
-        })
-        .catch(err => {
-            alert("Terjadi kesalahan saat mengirim");
-            btn.disabled = false;
         });
-    }
-</script>
 
-</body>
-</html>
+        btn.innerText = "SCAN ULANG";
+        btn.disabled = false;
+        btn.onclick = resetCamera;
+    });
+}
+
+function resetCamera() {
+    video.style.display = 'block';
+    photoPreview.style.display = 'none';
+    const btn = document.getElementById('btnCapture');
+    btn.innerText = "AMBIL FOTO & PINDAI";
+    btn.onclick = takePhoto;
+}
+
+function sendToGAS() {
+    // Masukkan URL Web App GAS Anda di sini
+    const scriptURL = 'TEMPEL_URL_GAS_ANDA_DISINI';
+    const payload = {
+        nik: document.getElementById('nik').value,
+        nama: document.getElementById('nama').value,
+        desa: document.getElementById('desa').value
+    };
+
+    fetch(scriptURL, { method: 'POST', body: JSON.stringify(payload) })
+    .then(() => alert("Berhasil disimpan!"))
+    .catch(() => alert("Gagal kirim data"));
+}
