@@ -1,0 +1,15 @@
+{
+  "name": "KTP Scanner Admin",
+  "short_name": "KTP Scan",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#28a745",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/2437/2437731.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
