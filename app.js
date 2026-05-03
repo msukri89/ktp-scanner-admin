@@ -7,60 +7,73 @@ const context = canvas.getContext('2d');
 navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
     .then(stream => { video.srcObject = stream; });
 
-// 2. Fungsi Utama
+// 2. Fungsi Utama Scan
 async function takePhoto() {
     const btn = document.getElementById('btnCapture');
     btn.innerText = "Memproses...";
     btn.disabled = true;
 
+    // A. Ambil Gambar Diam
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    // PRE-PROCESSING (Pembersihan ke Hitam-Putih seperti di video Anda)
+    // B. Pre-processing (Hitam Putih Tajam)
     let imageData = context.getImageData(0, 0, canvas.width, canvas.height);
     let pixels = imageData.data;
     for (let i = 0; i < pixels.length; i += 4) {
         let grayscale = pixels[i] * 0.3 + pixels[i+1] * 0.59 + pixels[i+2] * 0.11;
-        let v = (grayscale > 120) ? 255 : 0; // Thresholding tajam
+        let v = (grayscale > 120) ? 255 : 0; 
         pixels[i] = pixels[i+1] = pixels[i+2] = v;
     }
     context.putImageData(imageData, 0, 0);
 
-    // Tampilkan Foto Diam
+    // C. Tampilkan Preview
     photoPreview.src = canvas.toDataURL('image/png');
     photoPreview.style.display = 'block';
     video.style.display = 'none';
 
-    // JALANKAN OCR DENGAN CONFIG KHUSUS
-    Tesseract.recognize(canvas, 'ind', {
-        logger: m => console.log(m) 
-    }).then(({ data: { text } }) => {
-        console.log("Raw Text:", text);
+    // D. Jalankan OCR Tesseract
+    Tesseract.recognize(canvas, 'ind')
+    .then(({ data: { text } }) => {
+        console.log("Raw OCR Data:", text);
+        parseData(text);
         
-        // Membersihkan NIK (Cari 16 digit angka saja)
-        const nikMatch = text.replace(/\s/g, '').match(/\d{16}/);
-        if (nikMatch) {
-            document.getElementById('nik').value = nikMatch[0];
-        }
-
-        // Membersihkan Nama (Mencari baris setelah label 'Nama')
-        const lines = text.split('\n');
-        for (let i = 0; i < lines.length; i++) {
-            let line = lines[i].toUpperCase();
-            if (line.includes("NAMA")) {
-                // Ambil teks setelah kata Nama atau titik dua
-                let cleanName = lines[i].split(/[:\s]/).slice(1).join(' ').trim();
-                // Buang karakter aneh hasil OCR yang sering muncul di ujung
-                document.getElementById('nama').value = cleanName.replace(/[^a-zA-Z\s]/g, '').trim();
-                break;
-            }
-        }
-
         btn.innerText = "SCAN ULANG";
         btn.disabled = false;
         btn.onclick = resetCamera;
     });
+}
+
+// 3. Logika Pembersihan Teks (Lebih Agresif)
+function parseData(rawText) {
+    // Bersihkan NIK: Cari 16 angka, toleransi spasi atau karakter aneh
+    const cleanText = rawText.replace(/[^0-9a-zA-Z\n]/g, ' ');
+    const nikMatch = cleanText.replace(/\s/g, '').match(/\d{16}/);
+    if (nikMatch) document.getElementById('nik').value = nikMatch[0];
+
+    // Cari Nama: Mencari baris setelah NIK atau baris yang mengandung 'NAMA'
+    const lines = rawText.split('\n').map(l => l.trim()).filter(l => l.length > 3);
+    
+    let foundName = "";
+    for (let i = 0; i < lines.length; i++) {
+        let line = lines[i].toUpperCase();
+        
+        // Jika baris mengandung NIK, biasanya Nama ada di 1-2 baris setelahnya
+        if (line.match(/\d{10,16}/) && lines[i+1]) {
+            foundName = lines[i+1];
+        } 
+        // Atau jika baris mengandung kata mirip 'NAMA'
+        else if (line.includes("NAM") || line.includes("VAM") || line.includes("MAA")) {
+            foundName = lines[i].split(/[:\s]/).slice(1).join(' ');
+        }
+
+        if (foundName) {
+            // Bersihkan Nama dari angka dan simbol
+            document.getElementById('nama').value = foundName.replace(/[^a-zA-Z\s]/g, '').trim().toUpperCase();
+            break;
+        }
+    }
 }
 
 function resetCamera() {
@@ -69,8 +82,6 @@ function resetCamera() {
     const btn = document.getElementById('btnCapture');
     btn.innerText = "AMBIL FOTO & PINDAI";
     btn.onclick = takePhoto;
-    document.getElementById('nik').value = "";
-    document.getElementById('nama').value = "";
 }
 
 function sendToGAS() {
@@ -82,9 +93,6 @@ function sendToGAS() {
     };
 
     fetch(scriptURL, { method: 'POST', body: JSON.stringify(payload) })
-    .then(() => {
-        alert("Data Sukses Masuk Spreadsheet!");
-        resetCamera();
-    })
-    .catch(() => alert("Gagal kirim. Cek koneksi atau URL GAS Anda."));
+    .then(() => alert("Berhasil Masuk Spreadsheet!"))
+    .catch(() => alert("Gagal kirim data"));
 }
