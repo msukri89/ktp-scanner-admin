@@ -16,151 +16,191 @@
         .overlay { 
             position: absolute; top: 50%; left: 50%; 
             transform: translate(-50%, -50%);
-            width: 80%; height: 50%;
-            border: 2px solid #00ff00; border-radius: 10px;
-            box-shadow: 0 0 0 1000px rgba(0,0,0,0.5);
+            width: 85%; height: 55%;
+            border: 3px solid #00ff00; border-radius: 15px;
+            box-shadow: 0 0 0 1000px rgba(0,0,0,0.6);
             pointer-events: none;
+            z-index: 10;
         }
 
         /* Panel Bawah: Form Verifikasi */
-        #bottom-panel { flex: 1; padding: 20px; background: #fff; overflow-y: auto; border-top-left-radius: 20px; border-top-right-radius: 20px; }
-        .input-group { margin-bottom: 15px; }
-        label { display: block; font-weight: bold; margin-bottom: 5px; color: #555; }
-        input { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; font-size: 16px; }
-        
-        button { 
-            width: 100%; padding: 15px; background: #28a745; color: white; 
-            border: none; border-radius: 10px; font-size: 18px; font-weight: bold; cursor: pointer;
+        #bottom-panel { 
+            flex: 1; padding: 20px; background: #fff; 
+            overflow-y: auto; border-top-left-radius: 25px; 
+            border-top-right-radius: 25px; box-shadow: 0 -5px 15px rgba(0,0,0,0.1);
         }
-        button:disabled { background: #ccc; }
-        #status-msg { text-align: center; font-size: 14px; margin-top: 10px; color: #666; }
+        .input-group { margin-bottom: 15px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; color: #333; font-size: 14px; }
+        input { 
+            width: 100%; padding: 12px; border: 1px solid #ddd; 
+            border-radius: 8px; box-sizing: border-box; font-size: 16px; 
+            background: #f9f9f9;
+        }
+        input:focus { border-color: #28a745; outline: none; background: #fff; }
+        
+        .btn-container { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+        button { 
+            width: 100%; padding: 15px; border: none; border-radius: 12px; 
+            font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.3s;
+        }
+        #btn-scan { background: #007bff; color: white; }
+        #btn-submit { background: #28a745; color: white; display: none; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        
+        #status-msg { text-align: center; font-size: 13px; margin-top: 12px; color: #777; font-style: italic; }
     </style>
 </head>
 <body>
 
 <div class="container">
+    <!-- LAYAR ATAS: KAMERA -->
     <div id="top-panel">
         <video id="video" autoplay playsinline></video>
         <canvas id="preview" style="display:none;"></canvas>
         <div class="overlay"></div>
     </div>
 
+    <!-- LAYAR BAWAH: FORMULIR -->
     <div id="bottom-panel">
         <div class="input-group">
-            <label>NIK</label>
-            <input type="text" id="nik" placeholder="Hasil scan NIK...">
+            <label>NIK (16 Digit)</label>
+            <input type="text" id="nik" placeholder="Memindai NIK...">
         </div>
         <div class="input-group">
             <label>NAMA LENGKAP</label>
-            <input type="text" id="nama" placeholder="Hasil scan Nama...">
+            <input type="text" id="nama" placeholder="Memindai Nama...">
         </div>
         <div class="input-group">
             <label>ALAMAT (DUSUN/JL)</label>
-            <input type="text" id="alamat" placeholder="Hasil scan Alamat...">
+            <input type="text" id="alamat" placeholder="Input manual Alamat...">
         </div>
         <div class="input-group">
             <label>DESA/KELURAHAN</label>
-            <input type="text" id="desa" placeholder="Hasil scan Desa...">
+            <input type="text" id="desa" placeholder="Input manual Desa...">
         </div>
 
-        <button id="btn-scan" onclick="captureAndScan()">AMBIL FOTO & SCAN</button>
-        <button id="btn-submit" onclick="submitToGAS()" style="margin-top:10px; display:none;">SIMPAN KE SPREADSHEET</button>
-        <p id="status-msg">Siap memindai...</p>
+        <div class="btn-container">
+            <button id="btn-scan" onclick="captureAndScan()">AMBIL FOTO & PINDAI</button>
+            <button id="btn-submit" onclick="submitToGAS()">SIMPAN KE SPREADSHEET</button>
+        </div>
+        <p id="status-msg">Siap bekerja. Posisikan KTP dalam kotak hijau.</p>
     </div>
 </div>
 
 <script>
-    // --- KONFIGURASI ---
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbwKebiI0jRkDAJwY1IaYuxyfOrBdnHGJs4TAGcIHgvB844HxHzsio2GhwEJ32AOe_0ERQ/exec"; // <--- GANTI INI
+    // URL WEB APP GAS ANDA
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbwKebiI0jRkDAJwY1IaYuxyfOrBdnHGJs4TAGcIHgvB844HxHzsio2GhwEJ32AOe_0ERQ/exec";
     
     const video = document.getElementById('video');
     const canvas = document.getElementById('preview');
     const statusMsg = document.getElementById('status-msg');
 
-    // Aktifkan Kamera saat aplikasi dibuka
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+    // 1. Inisialisasi Kamera
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: 1280, height: 720 } })
         .then(stream => { video.srcObject = stream; })
-        .catch(err => { alert("Kamera gagal diakses: " + err); });
+        .catch(err => { 
+            statusMsg.innerText = "Error Kamera: " + err;
+            alert("Mohon izinkan akses kamera."); 
+        });
 
+    // 2. Fungsi Ambil Foto & Proses OCR
     async function captureAndScan() {
-        document.getElementById('btn-scan').disabled = true;
-        statusMsg.innerText = "Mengambil gambar & Pre-processing...";
+        const btnScan = document.getElementById('btn-scan');
+        btnScan.disabled = true;
+        statusMsg.innerText = "Mengolah gambar (Thresholding)...";
 
         const ctx = canvas.getContext('2d');
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-        // --- PRE-PROCESSING (Grayscale & Threshold) ---
+        // PRE-PROCESSING: Hitam-Putih Murni agar Tesseract akurat
         let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         let pixels = imageData.data;
         for (let i = 0; i < pixels.length; i += 4) {
             let avg = (pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3;
-            let v = (avg < 120) ? 0 : 255; // Threshold 120
+            let v = (avg < 125) ? 0 : 255; // Ambang batas filter
             pixels[i] = pixels[i + 1] = pixels[i + 2] = v;
         }
         ctx.putImageData(imageData, 0, 0);
 
-        statusMsg.innerText = "Memulai OCR (Mohon tunggu)...";
+        statusMsg.innerText = "Mengekstrak teks (OCR)...";
 
-        // --- PROSES OCR DENGAN TESSERACT ---
         try {
-            const result = await Tesseract.recognize(canvas, 'ind', {
-                logger: m => console.log(m)
-            });
-            
-            const text = result.data.text;
-            console.log("Full Text:", text);
-            
-            // Parsing Sederhana (Regex)
-            const nikMatch = text.match(/\d{16}/);
-            if (nikMatch) document.getElementById('nik').value = nikMatch[0];
-            
-            // Masukkan teks mentah ke Nama untuk dibersihkan manual oleh admin
-            document.getElementById('nama').value = "VERIFIKASI MANUAL"; 
-            
-            statusMsg.innerText = "Scan Selesai. Silakan verifikasi data.";
+            const result = await Tesseract.recognize(canvas, 'ind');
+            const fullText = result.data.text;
+            console.log("Hasil OCR:", fullText);
+
+            // REGEX: Mencari NIK (16 digit angka)
+            const nikMatch = fullText.match(/\d{16}/);
+            if (nikMatch) {
+                document.getElementById('nik').value = nikMatch[0];
+            }
+
+            // REGEX: Mencari Nama (Mencari teks setelah kata 'Nama')
+            const namaMatch = fullText.match(/Nama[\s:]+([^\n]+)/i);
+            if (namaMatch) {
+                document.getElementById('nama').value = namaMatch[1].trim().toUpperCase();
+            }
+
+            statusMsg.innerText = "Selesai. Silakan periksa kembali data di atas.";
             document.getElementById('btn-submit').style.display = "block";
         } catch (err) {
-            statusMsg.innerText = "Gagal OCR: " + err;
+            statusMsg.innerText = "Gagal memindai: " + err;
+            console.error(err);
         } finally {
-            document.getElementById('btn-scan').disabled = false;
+            btnScan.disabled = false;
         }
     }
 
+    // 3. Fungsi Kirim ke Google Sheets (GAS)
     async function submitToGAS() {
+        const btnSubmit = document.getElementById('btn-submit');
         const data = {
             nik: document.getElementById('nik').value,
             nama: document.getElementById('nama').value,
             alamat_detail: document.getElementById('alamat').value,
             desa: document.getElementById('desa').value,
-            kecamatan: "", // Akan diisi manual/auto di tahap selanjutnya
+            kecamatan: "", 
             kota: "",
             provinsi: "",
             status: "Online"
         };
 
-        statusMsg.innerText = "Mengirim data ke Spreadsheet...";
-        
+        if(!data.nik || !data.nama) {
+            alert("NIK dan Nama tidak boleh kosong!");
+            return;
+        }
+
+        btnSubmit.disabled = true;
+        statusMsg.innerText = "Mengirim ke Spreadsheet...";
+
         try {
-            const response = await fetch(GAS_URL, {
+            // Mengirim data ke URL GAS Anda
+            await fetch(GAS_URL, {
                 method: "POST",
-                mode: "no-cors", // Penting untuk GAS
+                mode: "no-cors",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(data)
             });
+
+            statusMsg.innerText = "SUKSES! Data tersimpan di Spreadsheet.";
+            alert("Data Berhasil Disimpan!");
             
-            statusMsg.innerText = "Data Terkirim! (Cek Spreadsheet)";
-            alert("Berhasil disimpan!");
-            
-            // Reset Form
+            // Reset Form untuk scan selanjutnya
             document.getElementById('nik').value = "";
             document.getElementById('nama').value = "";
-            document.getElementById('btn-submit').style.display = "none";
+            document.getElementById('alamat').value = "";
+            document.getElementById('desa').value = "";
+            btnSubmit.style.display = "none";
         } catch (err) {
-            statusMsg.innerText = "Gagal kirim: " + err;
+            statusMsg.innerText = "Gagal mengirim data.";
+            alert("Error saat mengirim ke GAS: " + err);
+        } finally {
+            btnSubmit.disabled = false;
         }
     }
 </script>
+
 </body>
 </html>
