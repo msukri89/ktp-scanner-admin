@@ -2,170 +2,205 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>KTP Scanner Admin Pro</title>
-    <!-- Memuat Library Tesseract.js -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KTP Scanner Admin</title>
+    <!-- Library OCR -->
     <script src="https://unpkg.com/tesseract.js@v2.1.0/dist/tesseract.min.js"></script>
     <style>
-        * { box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; background: #1a1a1a; color: #fff; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+        body { font-family: sans-serif; margin: 0; padding: 10px; background: #f4f4f4; }
+        .container { max-width: 500px; margin: auto; background: white; padding: 15px; border-radius: 8px; }
         
-        /* Bagian Atas: Preview Kamera */
-        .video-section { position: relative; height: 45%; background: #000; overflow: hidden; display: flex; justify-content: center; align-items: center; }
-        video { width: 100%; height: 100%; object-fit: cover; }
-        .overlay { position: absolute; border: 2px solid #00ff00; width: 85%; height: 65%; border-radius: 12px; pointer-events: none; box-shadow: 0 0 0 9999px rgba(0,0,0,0.6); }
-        .overlay::after { content: "POSISIKAN KTP DI SINI"; position: absolute; top: -25px; left: 50%; transform: translateX(-50%); font-size: 10px; color: #00ff00; letter-spacing: 1px; }
-
-        /* Bagian Bawah: Form Input & Kontrol */
-        .form-section { height: 55%; background: #ffffff; color: #333; padding: 20px; overflow-y: auto; border-top-left-radius: 25px; border-top-right-radius: 25px; }
-        .status-msg { text-align: center; font-size: 13px; font-weight: bold; color: #007bff; margin-bottom: 15px; min-height: 20px; }
+        /* Video & Preview Container */
+        .video-container { 
+            position: relative; 
+            width: 100%; 
+            height: 250px; 
+            background: black; 
+            overflow: hidden; 
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        video, #photoPreview { width: 100%; height: 100%; object-fit: cover; }
         
-        .field { margin-bottom: 15px; }
-        label { display: block; font-size: 11px; font-weight: bold; color: #888; margin-bottom: 5px; text-transform: uppercase; }
-        input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 10px; font-size: 16px; transition: border 0.3s; }
-        input:focus { border-color: #007bff; outline: none; }
+        /* Kotak Hijau Panduan */
+        .overlay {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80%; height: 60%;
+            border: 2px solid #28a745;
+            border-radius: 10px;
+            pointer-events: none;
+            box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.5);
+        }
 
-        .btn-group { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
-        button { width: 100%; padding: 16px; border: none; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; transition: opacity 0.2s; }
-        #btnCapture { background: #007bff; color: white; }
-        #btnSubmit { background: #28a745; color: white; }
-        button:disabled { opacity: 0.5; cursor: not-allowed; }
-
-        canvas { display: none; } /* Canvas tersembunyi untuk processing */
+        /* Form Styling */
+        label { display: block; margin-top: 10px; font-weight: bold; font-size: 12px; color: #555; }
+        input { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        
+        button { 
+            width: 100%; padding: 15px; margin-top: 15px; border: none; border-radius: 4px; 
+            font-weight: bold; cursor: pointer; color: white;
+        }
+        #btnCapture { background-color: #007bff; }
+        #btnSubmit { background-color: #28a745; }
+        button:disabled { background-color: #ccc; }
     </style>
 </head>
 <body>
 
-    <div class="video-section">
+<div class="container">
+    <h3 style="text-align:center; margin-top:0;">KTP Scanner Admin</h3>
+    
+    <div class="video-container">
+        <!-- Kamera Live -->
         <video id="video" autoplay playsinline></video>
-        <div class="overlay"></div>
-        <canvas id="canvas"></canvas>
+        
+        <!-- Hasil Foto Diam (Awalnya Sembunyi) -->
+        <img id="photoPreview" style="display:none;">
+        
+        <!-- Panduan Kotak -->
+        <div id="guideline" class="overlay"></div>
+        
+        <!-- Canvas Tersembunyi untuk Proses Gambar -->
+        <canvas id="captureCanvas" style="display:none;"></canvas>
     </div>
 
-    <div class="form-section">
-        <div id="status" class="status-msg">Siap memindai...</div>
+    <div class="form-container">
+        <label>NIK (16 DIGIT)</label>
+        <input type="text" id="nik" placeholder="Memindai NIK...">
 
-        <div class="field">
-            <label>NIK (16 Digit)</label>
-            <input type="text" id="nik" placeholder="Memindai NIK...">
-        </div>
+        <label>NAMA LENGKAP</label>
+        <input type="text" id="nama" placeholder="Memindai Nama...">
 
-        <div class="field">
-            <label>Nama Lengkap</label>
-            <input type="text" id="nama" placeholder="Memindai Nama...">
-        </div>
+        <label>ALAMAT (DUSUN/JL)</label>
+        <input type="text" id="alamat" placeholder="Input manual Alamat/Dusun...">
 
-        <div class="field">
-            <label>Alamat (Dusun/Jalan)</label>
-            <input type="text" id="alamat" placeholder="Input manual...">
-        </div>
+        <label>DESA/KELURAHAN</label>
+        <input type="text" id="desa" placeholder="Cari Desa (Offline)...">
 
-        <div class="field">
-            <label>Desa/Kelurahan</label>
-            <input type="text" id="desa" placeholder="Cari desa (Offline)...">
-        </div>
-
-        <div class="btn-group">
-            <button id="btnCapture" onclick="startScan()">AMBIL FOTO & PINDAI</button>
-            <button id="btnSubmit" onclick="sendData()">SIMPAN KE SPREADSHEET</button>
-        </div>
+        <button id="btnCapture" onclick="takePhoto()">AMBIL FOTO & PINDAI</button>
+        <button id="btnSubmit" onclick="sendToGAS()">SIMPAN KE SPREADSHEET</button>
     </div>
+</div>
 
-    <script>
-        const video = document.getElementById('video');
-        const canvas = document.getElementById('canvas');
-        const statusText = document.getElementById('status');
-        const ctx = canvas.getContext('2d');
+<script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('captureCanvas');
+    const photoPreview = document.getElementById('photoPreview');
+    const guideline = document.getElementById('guideline');
+    const context = canvas.getContext('2d');
 
-        // GANTI DENGAN URL WEB APP GAS ANDA
-        const GAS_URL = "https://script.google.com/macros/s/AKfycbwKebiI0jRkDAJwY1IaYuxyfOrBdnHGJs4TAGcIHgvB844HxHzsio2GhwEJ32AOe_0ERQ/exec";
+    // GANTI INI DENGAN URL WEB APP GAS ANDA
+    const scriptURL = 'https://script.google.com/macros/s/AKfycbz_XXXXXXXXX/exec'; 
 
-        // Aktifkan Kamera
-        navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: 1280, height: 720 } })
-            .then(stream => { video.srcObject = stream; })
-            .catch(err => { alert("Kamera tidak dapat diakses"); });
+    // 1. Akses Kamera
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+        .then(stream => { video.srcObject = stream; })
+        .catch(err => alert("Kamera tidak diizinkan atau tidak ditemukan"));
 
-        async function startScan() {
-            statusText.innerText = "MENGAMBIL GAMBAR...";
-            document.getElementById('btnCapture').disabled = true;
-
-            // 1. FREEZE: Ambil gambar dari video ke canvas
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-            // 2. PRE-PROCESS: Filter Hitam Putih (Thresholding)
-            let imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            let d = imgData.data;
-            for (let i = 0; i < d.length; i += 4) {
-                let r = d[i], g = d[i+1], b = d[i+2];
-                let gray = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-                let v = (gray > 120) ? 255 : 0; // Thresholding agar teks tajam
-                d[i] = d[i+1] = d[i+2] = v;
-            }
-            ctx.putImageData(imgData, 0, 0);
-
-            statusText.innerText = "MEMPROSES OCR (MOHON TUNGGU)...";
-
-            // 3. OCR: Proses gambar diam
-            try {
-                const result = await Tesseract.recognize(canvas, 'ind');
-                processText(result.data.text);
-            } catch (e) {
-                statusText.innerText = "GAGAL MEMINDAI. COBA LAGI.";
-            } finally {
-                document.getElementById('btnCapture').disabled = false;
-            }
+    // 2. Fungsi Ambil Foto & Freeze
+    async function takePhoto() {
+        const btn = document.getElementById('btnCapture');
+        
+        // Jika sedang dalam mode "Scan Ulang"
+        if (btn.innerText === "SCAN ULANG") {
+            resetCamera();
+            return;
         }
 
-        function processText(raw) {
-            console.log("Raw Output:", raw);
-            
-            // Regex Cari NIK
-            const nikMatch = raw.match(/\d{16}/);
-            if (nikMatch) document.getElementById('nik').value = nikMatch[0];
+        btn.innerText = "Memproses...";
+        btn.disabled = true;
 
-            // Cari Nama (Logika sederhana mencari baris setelah kata 'Nama')
-            const lines = raw.split('\n');
-            lines.forEach((l, i) => {
-                if (l.toUpperCase().includes("NAMA")) {
-                    let clean = l.replace(/NAMA|:|nama/gi, "").trim();
-                    document.getElementById('nama').value = clean;
-                }
-            });
+        // Ambil frame dari video
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-            statusText.innerText = "SELESAI. SILAKAN CEK & SIMPAN.";
-        }
+        // TAMPILKAN FOTO DIAM (FREEZE)
+        photoPreview.src = canvas.toDataURL('image/png');
+        photoPreview.style.display = 'block';
+        video.style.display = 'none';
+        guideline.style.display = 'none';
 
-        async function sendData() {
-            const btn = document.getElementById('btnSubmit');
-            const data = {
-                nik: document.getElementById('nik').value,
-                nama: document.getElementById('nama').value,
-                alamat_detail: document.getElementById('alamat').value,
-                desa: document.getElementById('desa').value
-            };
+        // OCR Tesseract
+        Tesseract.recognize(canvas, 'ind')
+        .then(({ data: { text } }) => {
+            console.log("Raw Teks:", text);
+            parseData(text);
+            btn.innerText = "SCAN ULANG";
+            btn.disabled = false;
+        })
+        .catch(err => {
+            alert("Gagal memproses gambar");
+            resetCamera();
+        });
+    }
 
-            if(!data.nik || !data.nama) return alert("Isi NIK dan Nama dulu!");
+    // 3. Ekstrak NIK & Nama
+    function parseData(text) {
+        // Cari 16 digit NIK
+        const nikMatch = text.match(/\d{16}/);
+        if (nikMatch) document.getElementById('nik').value = nikMatch[0];
 
-            btn.disabled = true;
-            statusText.innerText = "MENGIRIM KE SPREADSHEET...";
-
-            try {
-                await fetch(GAS_URL, {
-                    method: "POST",
-                    mode: "no-cors", // Untuk menghindari masalah CORS di GAS
-                    cache: "no-cache",
-                    body: JSON.stringify(data)
-                });
-                alert("Data berhasil dikirim!");
-                statusText.innerText = "DATA TERSIMPAN!";
-            } catch (e) {
-                alert("Koneksi gagal. Data akan masuk antrean (fitur offline segera).");
-            } finally {
-                btn.disabled = false;
+        // Cari Nama (Logika baris sederhana)
+        const lines = text.split('\n');
+        for (let line of lines) {
+            if (line.toUpperCase().includes("NAMA")) {
+                let cleanName = line.replace(/Nama|:|nama/gi, "").trim();
+                document.getElementById('nama').value = cleanName;
+                break;
             }
         }
-    </script>
+    }
+
+    // 4. Balik ke Kamera
+    function resetCamera() {
+        photoPreview.style.display = 'none';
+        video.style.display = 'block';
+        guideline.style.display = 'block';
+        document.getElementById('btnCapture').innerText = "AMBIL FOTO & PINDAI";
+        document.getElementById('nik').value = "";
+        document.getElementById('nama').value = "";
+    }
+
+    // 5. Kirim ke GAS
+    function sendToGAS() {
+        const btn = document.getElementById('btnSubmit');
+        const payload = {
+            nik: document.getElementById('nik').value,
+            nama: document.getElementById('nama').value,
+            alamat_detail: document.getElementById('alamat').value,
+            desa: document.getElementById('desa').value
+        };
+
+        if(!payload.nik || !payload.nama) {
+            alert("Data NIK atau Nama masih kosong!");
+            return;
+        }
+
+        btn.innerText = "Mengirim...";
+        btn.disabled = true;
+
+        fetch(scriptURL, { 
+            method: 'POST', 
+            mode: 'no-cors', // Penting untuk GAS
+            cache: 'no-cache',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload) 
+        })
+        .then(() => {
+            alert("Data berhasil antri/terkirim!");
+            btn.innerText = "SIMPAN KE SPREADSHEET";
+            btn.disabled = false;
+            resetCamera();
+        })
+        .catch(err => {
+            alert("Terjadi kesalahan saat mengirim");
+            btn.disabled = false;
+        });
+    }
+</script>
+
 </body>
 </html>
