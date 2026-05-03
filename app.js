@@ -83,7 +83,7 @@ function resetCamera() {
 
 // 4. Kirim Data ke Google Sheets (GAS)
 function sendToGAS() {
-    const scriptURL = 'URL_WEB_APP_GAS_ANDA'; // GANTI DENGAN URL GAS ANDA!
+    const scriptURL = 'https://script.google.com/macros/s/AKfycbwKebiI0jRkDAJwY1IaYuxyfOrBdnHGJs4TAGcIHgvB844HxHzsio2GhwEJ32AOe_0ERQ/exec'; // GANTI DENGAN URL GAS ANDA!
     const btnSubmit = document.getElementById('btnSubmit');
     
     btnSubmit.innerText = "Mengirim...";
