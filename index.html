@@ -4,49 +4,163 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>KTP Scanner Admin</title>
-    <link rel="manifest" href="manifest.json">
+    <!-- Memanggil Library Tesseract.js -->
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <style>
-        body { margin: 0; font-family: sans-serif; display: flex; flex-direction: column; height: 100vh; }
-        #top-panel { flex: 1; background: #000; position: relative; overflow: hidden; }
-        #bottom-panel { flex: 1; padding: 15px; overflow-y: auto; background: #f4f4f4; border-top: 2px solid #ccc; }
-        video, canvas { width: 100%; height: 100%; object-fit: cover; }
-        .input-group { margin-bottom: 10px; }
-        input { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 4px; }
-        label { font-size: 12px; color: #666; font-weight: bold; }
-        button { width: 100%; padding: 12px; background: #28a745; color: white; border: none; border-radius: 5px; font-weight: bold; margin-top: 10px; }
-        #shutter { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 60px; height: 60px; background: white; border-radius: 50%; border: 5px solid rgba(0,0,0,0.3); }
+        body { font-family: sans-serif; margin: 0; padding: 0; background: #f4f4f4; }
+        .container { display: flex; flex-direction: column; height: 100vh; }
+        
+        /* Panel Atas: Kamera & Visual */
+        #top-panel { flex: 1; position: relative; background: #000; overflow: hidden; }
+        video, canvas#preview { width: 100%; height: 100%; object-fit: cover; }
+        .overlay { 
+            position: absolute; top: 50%; left: 50%; 
+            transform: translate(-50%, -50%);
+            width: 80%; height: 50%;
+            border: 2px solid #00ff00; border-radius: 10px;
+            box-shadow: 0 0 0 1000px rgba(0,0,0,0.5);
+            pointer-events: none;
+        }
+
+        /* Panel Bawah: Form Verifikasi */
+        #bottom-panel { flex: 1; padding: 20px; background: #fff; overflow-y: auto; border-top-left-radius: 20px; border-top-right-radius: 20px; }
+        .input-group { margin-bottom: 15px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; color: #555; }
+        input { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; font-size: 16px; }
+        
+        button { 
+            width: 100%; padding: 15px; background: #28a745; color: white; 
+            border: none; border-radius: 10px; font-size: 18px; font-weight: bold; cursor: pointer;
+        }
+        button:disabled { background: #ccc; }
+        #status-msg { text-align: center; font-size: 14px; margin-top: 10px; color: #666; }
     </style>
 </head>
 <body>
 
-<div id="top-panel">
-    <video id="video" autoplay playsinline></video>
-    <canvas id="canvas" style="display:none;"></canvas>
-    <div id="shutter"></div>
+<div class="container">
+    <div id="top-panel">
+        <video id="video" autoplay playsinline></video>
+        <canvas id="preview" style="display:none;"></canvas>
+        <div class="overlay"></div>
+    </div>
+
+    <div id="bottom-panel">
+        <div class="input-group">
+            <label>NIK</label>
+            <input type="text" id="nik" placeholder="Hasil scan NIK...">
+        </div>
+        <div class="input-group">
+            <label>NAMA LENGKAP</label>
+            <input type="text" id="nama" placeholder="Hasil scan Nama...">
+        </div>
+        <div class="input-group">
+            <label>ALAMAT (DUSUN/JL)</label>
+            <input type="text" id="alamat" placeholder="Hasil scan Alamat...">
+        </div>
+        <div class="input-group">
+            <label>DESA/KELURAHAN</label>
+            <input type="text" id="desa" placeholder="Hasil scan Desa...">
+        </div>
+
+        <button id="btn-scan" onclick="captureAndScan()">AMBIL FOTO & SCAN</button>
+        <button id="btn-submit" onclick="submitToGAS()" style="margin-top:10px; display:none;">SIMPAN KE SPREADSHEET</button>
+        <p id="status-msg">Siap memindai...</p>
+    </div>
 </div>
 
-<div id="bottom-panel">
-    <div class="input-group">
-        <label>NIK</label>
-        <input type="text" id="nik" placeholder="Hasil scan NIK...">
-    </div>
-    <div class="input-group">
-        <label>NAMA LENGKAP</label>
-        <input type="text" id="nama" placeholder="Hasil scan Nama...">
-    </div>
-    <div class="input-group">
-        <label>ALAMAT (DUSUN/JL)</label>
-        <input type="text" id="alamat" placeholder="Hasil scan Alamat...">
-    </div>
-    <div class="input-group">
-        <label>DESA/KELURAHAN</label>
-        <input type="text" id="desa" placeholder="Cari Desa...">
-    </div>
-    <!-- Field Kecamatan, Kota, Provinsi bisa di-auto-fill nanti -->
-    <button id="btn-submit">SIMPAN KE SPREADSHEET</button>
-</div>
+<script>
+    // --- KONFIGURASI ---
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbwKebiI0jRkDAJwY1IaYuxyfOrBdnHGJs4TAGcIHgvB844HxHzsio2GhwEJ32AOe_0ERQ/exec"; // <--- GANTI INI
+    
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('preview');
+    const statusMsg = document.getElementById('status-msg');
 
-<script src="app.js"></script>
+    // Aktifkan Kamera saat aplikasi dibuka
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+        .then(stream => { video.srcObject = stream; })
+        .catch(err => { alert("Kamera gagal diakses: " + err); });
+
+    async function captureAndScan() {
+        document.getElementById('btn-scan').disabled = true;
+        statusMsg.innerText = "Mengambil gambar & Pre-processing...";
+
+        const ctx = canvas.getContext('2d');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        // --- PRE-PROCESSING (Grayscale & Threshold) ---
+        let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        let pixels = imageData.data;
+        for (let i = 0; i < pixels.length; i += 4) {
+            let avg = (pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3;
+            let v = (avg < 120) ? 0 : 255; // Threshold 120
+            pixels[i] = pixels[i + 1] = pixels[i + 2] = v;
+        }
+        ctx.putImageData(imageData, 0, 0);
+
+        statusMsg.innerText = "Memulai OCR (Mohon tunggu)...";
+
+        // --- PROSES OCR DENGAN TESSERACT ---
+        try {
+            const result = await Tesseract.recognize(canvas, 'ind', {
+                logger: m => console.log(m)
+            });
+            
+            const text = result.data.text;
+            console.log("Full Text:", text);
+            
+            // Parsing Sederhana (Regex)
+            const nikMatch = text.match(/\d{16}/);
+            if (nikMatch) document.getElementById('nik').value = nikMatch[0];
+            
+            // Masukkan teks mentah ke Nama untuk dibersihkan manual oleh admin
+            document.getElementById('nama').value = "VERIFIKASI MANUAL"; 
+            
+            statusMsg.innerText = "Scan Selesai. Silakan verifikasi data.";
+            document.getElementById('btn-submit').style.display = "block";
+        } catch (err) {
+            statusMsg.innerText = "Gagal OCR: " + err;
+        } finally {
+            document.getElementById('btn-scan').disabled = false;
+        }
+    }
+
+    async function submitToGAS() {
+        const data = {
+            nik: document.getElementById('nik').value,
+            nama: document.getElementById('nama').value,
+            alamat_detail: document.getElementById('alamat').value,
+            desa: document.getElementById('desa').value,
+            kecamatan: "", // Akan diisi manual/auto di tahap selanjutnya
+            kota: "",
+            provinsi: "",
+            status: "Online"
+        };
+
+        statusMsg.innerText = "Mengirim data ke Spreadsheet...";
+        
+        try {
+            const response = await fetch(GAS_URL, {
+                method: "POST",
+                mode: "no-cors", // Penting untuk GAS
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(data)
+            });
+            
+            statusMsg.innerText = "Data Terkirim! (Cek Spreadsheet)";
+            alert("Berhasil disimpan!");
+            
+            // Reset Form
+            document.getElementById('nik').value = "";
+            document.getElementById('nama').value = "";
+            document.getElementById('btn-submit').style.display = "none";
+        } catch (err) {
+            statusMsg.innerText = "Gagal kirim: " + err;
+        }
+    }
+</script>
 </body>
 </html>
