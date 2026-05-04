@@ -31,8 +31,8 @@ async function takePhoto() {
         const result = await response.json();
 
         if (result.status === "success") {
-            documents.getElementById('nik').value = result.nik;
-            documents.getElementById('nama').value = result.nama;
+            document.getElementById('nik').value = result.nik;
+            document.getElementById('nama').value = result.nama;
             btn.innerText = "SCAN ULANG";
         } else {
             alert("Gagal: " + result.message);
