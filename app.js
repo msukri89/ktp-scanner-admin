@@ -25,7 +25,7 @@ async function takePhoto() {
     // Konversi ke Base64 untuk dikirim
     const base64Image = canvas.toDataURL('image/jpeg').split(',')[1];
     
-    const scriptURL = 'https://script.google.com/macros/s/AKfycbwKebiI0jRkDAJwY1IaYuxyfOrBdnHGJs4TAGcIHgvB844HxHzsio2GhwEJ32AOe_0ERQ/exec';
+    const scriptURL = 'https://script.google.com/macros/s/AKfycbxS2N5W-aV6yLKV9q2AZaRnTrjOcVWTJ9q6G5puPUx7ETrOWVuv8ad3muxvOUGVyuahvw/exec';
 
     fetch(scriptURL, {
         method: 'POST',
