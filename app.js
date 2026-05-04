@@ -1,7 +1,7 @@
-const video = document.getElementById('video');
-const canvas = document.getElementById('captureCanvas');
-const photoPreview = document.getElementById('photoPreview');
-const btn = document.getElementById('btnCapture');
+const video = documents.getElementById('video');
+const canvas = documents.getElementById('captureCanvas');
+const photoPreview = documents.getElementById('photoPreview');
+const btn = documents.getElementById('btnCapture');
 
 navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
     .then(stream => { video.srcObject = stream; });
@@ -31,8 +31,8 @@ async function takePhoto() {
         const result = await response.json();
 
         if (result.status === "success") {
-            document.getElementById('nik').value = result.nik;
-            document.getElementById('nama').value = result.nama;
+            documents.getElementById('nik').value = result.nik;
+            documents.getElementById('nama').value = result.nama;
             btn.innerText = "SCAN ULANG";
         } else {
             alert("Gagal: " + result.message);
