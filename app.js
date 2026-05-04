@@ -1,7 +1,7 @@
-const video = documents.getElementById('video');
-const canvas = documents.getElementById('captureCanvas');
-const photoPreview = documents.getElementById('photoPreview');
-const btn = documents.getElementById('btnCapture');
+const video = document.getElementById('video');
+const canvas = document.getElementById('captureCanvas');
+const photoPreview = document.getElementById('photoPreview');
+const btn = document.getElementById('btnCapture');
 
 navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
     .then(stream => { video.srcObject = stream; });
