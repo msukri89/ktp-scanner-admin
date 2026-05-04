@@ -25,7 +25,7 @@ async function takePhoto() {
     // Konversi ke Base64 untuk dikirim
     const base64Image = canvas.toDataURL('image/jpeg').split(',')[1];
     
-    const scriptURL = 'TEMPEL_URL_GAS_BARU_ANDA_DISINI';
+    const scriptURL = 'https://script.google.com/macros/s/AKfycbwKebiI0jRkDAJwY1IaYuxyfOrBdnHGJs4TAGcIHgvB844HxHzsio2GhwEJ32AOe_0ERQ/exec';
 
     fetch(scriptURL, {
         method: 'POST',
